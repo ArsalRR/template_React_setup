@@ -1,117 +1,49 @@
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Sun, Moon, Menu, X } from "lucide-react";
+import { ChevronRight, Sun, Moon, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/lib/nav";
 
-const ROW = "flex items-center rounded-lg text-sm transition-colors";
+const APP_LOGO = "/logo.png";
+const APP_NAME = "Nama Aplikasi";
+const APP_TAGLINE = "Bapperida Kota Pekalongan";
+
+const ROW =
+  "flex w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm transition-colors duration-150";
+const FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50";
 const IDLE =
-  "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200";
+  "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100";
 const ACTIVE = "bg-rose-700 font-medium text-white";
-const ACTIVE_SOFT = "bg-slate-100 font-medium text-slate-900 dark:bg-slate-800 dark:text-slate-100";
+const ACTIVE_SOFT =
+  "bg-slate-100 font-medium text-slate-900 dark:bg-slate-800 dark:text-slate-100";
 
 const isInside = (pathname, to) => pathname === to || pathname.startsWith(to + "/");
 const isExact = (pathname, to) => pathname === to || pathname === to + "/";
 
-function Letter({ label }) {
+function Chevron({ open }) {
   return (
-    <span className="flex h-[18px] w-[18px] items-center justify-center text-xs font-semibold uppercase">
-      {label.charAt(0)}
-    </span>
-  );
-}
-
-/* Panel kecil di sebelah kanan sidebar saat sidebar diciutkan */
-function Flyout({ item, position, anchorRef, onClose }) {
-  const { pathname } = useLocation();
-  const panelRef = useRef(null);
-
-  useEffect(() => {
-    onClose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
-
-  useEffect(() => {
-    const onDown = (e) => {
-      if (panelRef.current?.contains(e.target)) return;
-      if (anchorRef.current?.contains(e.target)) return;
-      onClose();
-    };
-    const onKey = (e) => e.key === "Escape" && onClose();
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [anchorRef, onClose]);
-
-  const renderList = (children, depth) =>
-    children.map((child) => (
-      <div key={child.to}>
-        <NavLink
-          to={child.to}
-          end={child.children.length > 0}
-          className={({ isActive }) =>
-            cn(ROW, "gap-3 px-3 py-1.5", isActive ? ACTIVE : IDLE)
-          }
-          style={{ marginLeft: depth * 12 }}
-        >
-          <span className="truncate">{child.label}</span>
-        </NavLink>
-        {child.children.length > 0 && renderList(child.children, depth + 1)}
-      </div>
-    ));
-
-  return createPortal(
-    <div
-      ref={panelRef}
-      style={{
-        top: position.top,
-        left: position.left,
-        maxHeight: `calc(100vh - ${position.top}px - 16px)`,
-      }}
-      className="fixed z-50 w-52 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-md dark:border-slate-700 dark:bg-slate-900"
-    >
-      {item.toggleOnly ? (
-        <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          {item.label}
-        </p>
-      ) : (
-        <NavLink
-          to={item.to}
-          end
-          className={({ isActive }) =>
-            cn(ROW, "gap-3 px-3 py-1.5", isActive ? ACTIVE : IDLE)
-          }
-        >
-          <span className="truncate">{item.label}</span>
-        </NavLink>
+    <ChevronRight
+      aria-hidden="true"
+      className={cn(
+        "h-4 w-4 shrink-0 opacity-60 transition-transform duration-200",
+        open && "rotate-90"
       )}
-      <div className="mt-0.5 flex flex-col gap-0.5">{renderList(item.children, 0)}</div>
-    </div>,
-    document.body
+    />
   );
 }
 
-function NavItem({ item, depth = 0, iconOnly, closeMobile }) {
+function NavItem({ item, depth = 0, closeMobile }) {
   const { pathname } = useLocation();
   const hasChildren = item.children.length > 0;
   const inside = isInside(pathname, item.to);
   const exact = isExact(pathname, item.to);
   const [open, setOpen] = useState(inside || item.defaultOpen);
-  const [flyout, setFlyout] = useState(null);
-  const btnRef = useRef(null);
   const pad = depth === 0 ? "py-2" : "py-1.5";
 
   useEffect(() => {
     if (inside) setOpen(true);
   }, [inside]);
-
-  useEffect(() => {
-    if (!iconOnly) setFlyout(null);
-  }, [iconOnly]);
 
   // 1) Menu biasa tanpa anak
   if (!hasChildren) {
@@ -119,62 +51,14 @@ function NavItem({ item, depth = 0, iconOnly, closeMobile }) {
       <NavLink
         to={item.to}
         onClick={closeMobile}
-        title={iconOnly ? item.label : undefined}
-        className={({ isActive }) =>
-          cn(
-            ROW,
-            pad,
-            iconOnly ? "md:justify-center md:px-2" : "gap-3 px-3",
-            isActive ? ACTIVE : IDLE
-          )
-        }
+        className={({ isActive }) => cn(ROW, FOCUS, pad, isActive ? ACTIVE : IDLE)}
       >
-        {iconOnly ? <Letter label={item.label} /> : <span className="truncate">{item.label}</span>}
+        <span className="truncate">{item.label}</span>
       </NavLink>
     );
   }
 
-  // 2) Sidebar diciutkan: induk membuka panel di samping
-  if (iconOnly) {
-    const toggleFlyout = () => {
-      if (flyout) return setFlyout(null);
-      const rect = btnRef.current.getBoundingClientRect();
-      setFlyout({ top: rect.top, left: rect.right + 8 });
-    };
-    return (
-      <>
-        <button
-          ref={btnRef}
-          onClick={toggleFlyout}
-          title={item.label}
-          aria-haspopup="true"
-          aria-expanded={!!flyout}
-          className={cn(ROW, pad, "w-full md:justify-center md:px-2", inside ? ACTIVE : IDLE)}
-        >
-          <Letter label={item.label} />
-        </button>
-        {flyout && (
-          <Flyout
-            item={item}
-            position={flyout}
-            anchorRef={btnRef}
-            onClose={() => setFlyout(null)}
-          />
-        )}
-      </>
-    );
-  }
-
-  // 3) Sidebar terbuka: induk dengan submenu (teks + panah satu baris)
-  const chevron = (
-    <ChevronRight
-      className={cn(
-        "h-4 w-4 shrink-0 opacity-60 transition-transform duration-200",
-        open && "rotate-90"
-      )}
-    />
-  );
-
+  // 2) Induk dengan submenu: seluruh baris bisa diklik
   const rowState = item.toggleOnly
     ? inside
       ? ACTIVE_SOFT
@@ -185,36 +69,33 @@ function NavItem({ item, depth = 0, iconOnly, closeMobile }) {
         ? ACTIVE_SOFT
         : IDLE;
 
+  const content = (
+    <>
+      <span className="truncate">{item.label}</span>
+      <Chevron open={open} />
+    </>
+  );
+
   return (
     <div>
       {item.toggleOnly ? (
         <button
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className={cn(ROW, pad, "w-full justify-between gap-3 px-3", rowState)}
+          className={cn(ROW, FOCUS, pad, rowState)}
         >
-          <span className="truncate">{item.label}</span>
-          {chevron}
+          {content}
         </button>
       ) : (
-        <div className={cn(ROW, rowState)}>
-          <NavLink
-            to={item.to}
-            end
-            onClick={() => setOpen(true)}
-            className={cn("flex-1 truncate px-3", pad)}
-          >
-            {item.label}
-          </NavLink>
-          <button
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            aria-label={open ? `Tutup submenu ${item.label}` : `Buka submenu ${item.label}`}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-          >
-            {chevron}
-          </button>
-        </div>
+        <NavLink
+          to={item.to}
+          end
+          aria-expanded={open}
+          onClick={() => (exact ? setOpen((o) => !o) : setOpen(true))}
+          className={cn(ROW, FOCUS, pad, rowState)}
+        >
+          {content}
+        </NavLink>
       )}
 
       <div
@@ -230,7 +111,6 @@ function NavItem({ item, depth = 0, iconOnly, closeMobile }) {
                 key={child.to}
                 item={child}
                 depth={depth + 1}
-                iconOnly={false}
                 closeMobile={closeMobile}
               />
             ))}
@@ -241,23 +121,50 @@ function NavItem({ item, depth = 0, iconOnly, closeMobile }) {
   );
 }
 
-export function Sidebar({ collapsed, onToggle }) {
+function ThemeSwitch({ dark, setDark }) {
+  const base =
+    "flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors";
+  const on = "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white";
+  const off =
+    "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200";
+
+  return (
+    <div
+      role="group"
+      aria-label="Tema tampilan"
+      className="flex rounded-lg bg-slate-100 p-1 dark:bg-slate-800"
+    >
+      <button
+        onClick={() => setDark(false)}
+        aria-pressed={!dark}
+        className={cn(base, FOCUS, !dark ? on : off)}
+      >
+        <Sun className="h-3.5 w-3.5" />
+        Terang
+      </button>
+      <button
+        onClick={() => setDark(true)}
+        aria-pressed={dark}
+        className={cn(base, FOCUS, dark ? on : off)}
+      >
+        <Moon className="h-3.5 w-3.5" />
+        Gelap
+      </button>
+    </div>
+  );
+}
+
+export function Sidebar() {
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem("theme");
     if (saved) return saved === "dark";
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
-
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("theme", dark ? "dark" : "light");
   }, [dark]);
 
   useEffect(() => {
@@ -270,7 +177,6 @@ export function Sidebar({ collapsed, onToggle }) {
   }, []);
 
   const closeMobile = () => setMobileOpen(false);
-  const iconOnly = collapsed && !mobileOpen;
 
   return (
     <>
@@ -280,12 +186,14 @@ export function Sidebar({ collapsed, onToggle }) {
           "fixed left-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-lg border md:hidden",
           "border-slate-200 bg-white text-slate-600",
           "dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
+          FOCUS,
           mobileOpen && "hidden"
         )}
         aria-label="Buka menu"
       >
         <Menu className="h-5 w-5" />
       </button>
+
       {mobileOpen && (
         <div
           onClick={closeMobile}
@@ -296,104 +204,62 @@ export function Sidebar({ collapsed, onToggle }) {
 
       <aside
         className={cn(
-          "flex h-screen flex-col border-r transition-transform duration-300",
+          "flex h-screen w-64 shrink-0 flex-col border-r transition-transform duration-300",
           "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900",
-          "fixed inset-y-0 left-0 z-40 w-64",
+          "fixed inset-y-0 left-0 z-40",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
-          "md:static md:z-auto md:translate-x-0 md:transition-all",
-          collapsed ? "md:w-16" : "md:w-58"
+          "md:static md:z-auto md:translate-x-0"
         )}
       >
         {/* Brand */}
-        <div
-          className={cn(
-            "flex items-center border-b px-3 py-4",
-            "border-slate-200 dark:border-slate-700",
-            collapsed ? "md:justify-center" : "justify-between gap-3"
-          )}
-        >
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-700 text-sm font-semibold text-white"></div>
-            {(!collapsed || mobileOpen) && (
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100"></p>
-            )}
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-700">
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              src={APP_LOGO}
+              alt={`Logo ${APP_NAME}`}
+              className="h-9 w-9 shrink-0 object-contain"
+            />
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {APP_NAME}
+              </p>
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                {APP_TAGLINE}
+              </p>
+            </div>
           </div>
-
           <button
             onClick={closeMobile}
-            className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 md:hidden"
+            className={cn(
+              "rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 md:hidden",
+              "dark:hover:bg-slate-800 dark:hover:text-slate-300",
+              FOCUS
+            )}
             aria-label="Tutup menu"
           >
             <X className="h-4 w-4" />
           </button>
-
-          {!collapsed && (
-            <button
-              onClick={onToggle}
-              className="hidden rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 md:block"
-              aria-label="Tutup sidebar"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          )}
         </div>
 
-        {collapsed && (
-          <div className="hidden justify-center py-2 md:flex">
-            <button
-              onClick={onToggle}
-              className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-              aria-label="Buka sidebar"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-        <nav className="flex flex-1 flex-col overflow-y-auto px-2 py-2">
+        {/* Menu */}
+        <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-2">
           {NAV_GROUPS.map((group) => (
-            <div key={group.label} className="mb-1">
-              {!iconOnly && (
-                <p className="mb-1 mt-3 px-3 text-[10px] font-medium uppercase tracking-wider text-slate-400 first:mt-1 dark:text-slate-500">
-                  {group.label}
-                </p>
-              )}
-              {iconOnly && (
-                <div className="mx-2 my-1 hidden border-t border-slate-100 dark:border-slate-700 md:block" />
-              )}
-
+            <div key={group.label}>
+              <p className="pb-1.5 pl-3 pt-5 text-xs font-medium text-slate-400 dark:text-slate-500">
+                {group.label}
+              </p>
               <div className="flex flex-col gap-0.5">
                 {group.items.map((item) => (
-                  <NavItem
-                    key={item.to}
-                    item={item}
-                    iconOnly={iconOnly}
-                    closeMobile={closeMobile}
-                  />
+                  <NavItem key={item.to} item={item} closeMobile={closeMobile} />
                 ))}
               </div>
             </div>
           ))}
         </nav>
 
-        {/* Footer: toggle tema */}
-        <div className="border-t border-slate-200 px-2 py-3 dark:border-slate-700">
-          <button
-            onClick={() => setDark((d) => !d)}
-            title={iconOnly ? (dark ? "Mode terang" : "Mode gelap") : undefined}
-            className={cn(
-              ROW,
-              "w-full py-2",
-              IDLE,
-              iconOnly ? "md:justify-center md:px-2" : "gap-3 px-3"
-            )}
-          >
-            {dark ? (
-              <Sun className="h-[18px] w-[18px] shrink-0" />
-            ) : (
-              <Moon className="h-[18px] w-[18px] shrink-0" />
-            )}
-            {!iconOnly && <span>{dark ? "Mode Terang" : "Mode Gelap"}</span>}
-          </button>
+        {/* Footer */}
+        <div className="border-t border-slate-200 p-3 dark:border-slate-700">
+          <ThemeSwitch dark={dark} setDark={setDark} />
         </div>
       </aside>
     </>

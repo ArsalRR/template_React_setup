@@ -81,7 +81,7 @@ const PAGES = Object.entries(modules).map(([file, loader]) => {
 
     const Page = mod.default;
     const title = mod.title ?? defaultTitle(path);
-    const withLayout = mod.layout !== false; // export const layout = false -> tanpa MainLayout
+    const withLayout = mod.layout !== false;
 
     return {
       default: function RoutedPage() {
@@ -102,8 +102,6 @@ const PAGES = Object.entries(modules).map(([file, loader]) => {
 
   return { path, Element };
 });
-
-// Cegah redirect tanpa akhir kalau /dashboard belum ada
 const HAS_DASHBOARD = PAGES.some((p) => p.path === "/dashboard");
 
 export default function AppRoutes() {

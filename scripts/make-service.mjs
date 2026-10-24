@@ -1,9 +1,4 @@
-#!/usr/bin/env node
-// Pemakaian:
-//   npm run make:service -- Asset --resource     (CRUD lengkap)
-//   npm run make:service -- Dashboard            (hanya GET)
-//   npm run make:service -- Asset --resource --endpoint master/assets
-//   npm run make:service -- Asset --resource --force   (timpa file yang sudah ada)
+
 import fs from "node:fs";
 import path from "node:path";
 
@@ -24,8 +19,6 @@ if (!target) {
 
 const resource = opt("resource") === true;
 const force = opt("force") === true;
-
-// "Asset", "asset", "AssetCategory", "asset-category" -> ["asset", "category"]
 const words = target
   .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
   .toLowerCase()
