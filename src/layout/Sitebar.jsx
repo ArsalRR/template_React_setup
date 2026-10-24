@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { ChevronRight, Sun, Moon, Menu, X } from "lucide-react";
+import { ChevronRight, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/lib/nav";
 
 const APP_LOGO = "/logo.png";
 const APP_NAME = "Nama Aplikasi";
-const APP_TAGLINE = "Bapperida Kota Pekalongan";
+const APP_TAGLINE = "Testing";
 
 const ROW =
   "flex w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm transition-colors duration-150";
@@ -121,51 +121,8 @@ function NavItem({ item, depth = 0, closeMobile }) {
   );
 }
 
-function ThemeSwitch({ dark, setDark }) {
-  const base =
-    "flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors";
-  const on = "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white";
-  const off =
-    "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200";
-
-  return (
-    <div
-      role="group"
-      aria-label="Tema tampilan"
-      className="flex rounded-lg bg-slate-100 p-1 dark:bg-slate-800"
-    >
-      <button
-        onClick={() => setDark(false)}
-        aria-pressed={!dark}
-        className={cn(base, FOCUS, !dark ? on : off)}
-      >
-        <Sun className="h-3.5 w-3.5" />
-        Terang
-      </button>
-      <button
-        onClick={() => setDark(true)}
-        aria-pressed={dark}
-        className={cn(base, FOCUS, dark ? on : off)}
-      >
-        <Moon className="h-3.5 w-3.5" />
-        Gelap
-      </button>
-    </div>
-  );
-}
-
 export function Sidebar() {
-  const [dark, setDark] = useState(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved) return saved === "dark";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("theme", dark ? "dark" : "light");
-  }, [dark]);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -242,7 +199,7 @@ export function Sidebar() {
         </div>
 
         {/* Menu */}
-        <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-2">
+        <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-4">
           {NAV_GROUPS.map((group) => (
             <div key={group.label}>
               <p className="pb-1.5 pl-3 pt-5 text-xs font-medium text-slate-400 dark:text-slate-500">
@@ -256,11 +213,6 @@ export function Sidebar() {
             </div>
           ))}
         </nav>
-
-        {/* Footer */}
-        <div className="border-t border-slate-200 p-3 dark:border-slate-700">
-          <ThemeSwitch dark={dark} setDark={setDark} />
-        </div>
       </aside>
     </>
   );
