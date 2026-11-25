@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev": "node scripts/setup.mjs",
+    "postinstall": "node scripts/setup.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "page": "node scripts/make-page.mjs",
-    "service": "node scripts/make-service.mjs"
+    "service": "node scripts/make-service.mjs",
+    "sidebar": "node scripts/sidebar.mjs",
+    "sitebar": "node scripts/sidebar.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

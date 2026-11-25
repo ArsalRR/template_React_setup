@@ -1,18 +1,24 @@
-
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 
-const BOOL_FLAGS = ["flat", "no-nav", "service", "resource", "form"];
+const BOOL_FLAGS = ["flat", "no-nav", "service", "resource", "form", "hidden", "default-open", "toggle-only"];
 const SEGMENT = /^(\[[a-z0-9_-]+\]|[a-z0-9_-]+)$/;
 const ROOT = process.cwd();
 const pagesRoot = path.join(ROOT, "src", "pages");
 const serviceDir = path.join(ROOT, "src", "service");
 
+const ICON_STYLE = "component";
+
 const USAGE =
-  'Gunakan: npm run page -- <folder> [--dropdown a,b] [--service | --resource [--form]] [--api path]\n' +
+  'Gunakan: npm run page -- <folder> [--dropdown "Surat Masuk@Mail, Surat Keluar:Keluar@Send"]\n' +
+  '                           [--service | --resource [--form]] [--api path] [--icon Mail]\n' +
   '                           [--label "Nama"] [--group "Grup"] [--order 10] [--flat] [--no-nav]\n' +
+  "                           [--hidden] [--default-open] [--toggle-only]\n" +
+  "Nama folder/submenu bebas huruf besar-kecil dan spasi (otomatis jadi slug: Surat Masuk -> surat-masuk).\n" +
+  "Format submenu: Nama[:Label][@IkonLucide]. Ikon boleh ditulis Mail, mail, mail-open, atau MailOpen.\n" +
   "Atau jalankan tanpa argumen (npm run page) untuk mode interaktif.";
+
 function parseArgs(argv) {
   const flags = {};
   const positional = [];
@@ -23,13 +29,15 @@ function parseArgs(argv) {
       continue;
     }
     const key = a.slice(2);
-    const next = argv[i + 1];
-    if (!BOOL_FLAGS.includes(key) && next && !next.startsWith("--")) {
-      flags[key] = next;
-      i++;
-    } else {
+    if (BOOL_FLAGS.includes(key)) {
       flags[key] = true;
+      continue;
     }
+    const values = [];
+    while (i + 1 < argv.length && !argv[i + 1].startsWith("--")) {
+      values.push(argv[++i]);
+    }
+    flags[key] = values.length ? values.join(" ") : true;
   }
   return { flags, positional };
 }
@@ -45,13 +53,82 @@ const toWords = (seg) =>
 
 const isDynamic = (segments) => segments.some((s) => s.startsWith("["));
 
+function slugify(raw) {
+  const s = String(raw).trim();
+  const dyn = /^\[(.+)\]$/.exec(s);
+  const clean = (dyn ? dyn[1] : s)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+  return dyn && clean ? `[${clean}]` : clean;
+}
+
+function labelFromRaw(raw, slug) {
+  const t = String(raw).trim().replace(/\s+/g, " ");
+  return /[A-Z]/.test(t) ? t : toWords(slug).join(" ");
+}
+
 function assertSegments(segments) {
   if (!segments.length) throw new Error("Nama folder wajib diisi.");
   if (!segments.every((s) => SEGMENT.test(s))) {
     throw new Error(
-      `Nama folder tidak valid: "${segments.join("/")}". Pakai huruf kecil, angka, - dan _ (atau [param]).`
+      `Nama folder tidak valid: "${segments.join("/")}". Pakai huruf, angka, spasi, - dan _ (atau [param]).`
     );
   }
+}
+
+let lucideCache;
+function loadLucideNames() {
+  if (lucideCache !== undefined) return lucideCache;
+  lucideCache = null;
+  for (const f of ["lucide-react.d.ts", "lucide-react.d.cts"]) {
+    const file = path.join(ROOT, "node_modules", "lucide-react", "dist", f);
+    if (!fs.existsSync(file)) continue;
+    const names = new Map();
+    for (const m of fs.readFileSync(file, "utf8").matchAll(/declare const ([A-Z][A-Za-z0-9]*)\b/g)) {
+      names.set(m[1].toLowerCase(), m[1]);
+    }
+    if (names.size) {
+      lucideCache = names;
+      break;
+    }
+  }
+  return lucideCache;
+}
+
+function resolveIcon(input) {
+  if (!input || input === true) return undefined;
+  const flat = String(input).trim().replace(/[^A-Za-z0-9]+/g, "");
+  if (!flat) return undefined;
+
+  const names = loadLucideNames();
+  if (!names) {
+    const guess = String(input)
+      .trim()
+      .split(/[^A-Za-z0-9]+/)
+      .filter(Boolean)
+      .map(cap)
+      .join("");
+    console.warn(`Peringatan: lucide-react belum terpasang, ikon "${guess}" tidak diverifikasi.\n`);
+    return guess;
+  }
+
+  const hit = names.get(flat.toLowerCase());
+  if (hit) return hit;
+
+  const suggestions = [...names.values()]
+    .filter((n) => n.toLowerCase().includes(flat.toLowerCase()))
+    .slice(0, 5);
+  console.warn(
+    `Peringatan: ikon "${input}" tidak ada di lucide-react, dilewati.` +
+      (suggestions.length ? ` Mungkin maksudnya: ${suggestions.join(", ")}` : "") +
+      "\n"
+  );
+  return undefined;
 }
 
 function nextOrder(parentDir) {
@@ -79,12 +156,24 @@ function parseChildren(spec) {
     .map((s) => s.trim())
     .filter(Boolean)
     .map((item) => {
-      const [rawName, ...rawLabel] = item.split(":");
-      const name = rawName.trim().toLowerCase();
+      let rest = item;
+      let icon;
+      const iconMatch = /@\s*([A-Za-z][A-Za-z0-9_-]*)\s*$/.exec(rest);
+      if (iconMatch) {
+        icon = resolveIcon(iconMatch[1]);
+        rest = rest.slice(0, iconMatch.index).trim();
+      }
+      const [rawName, ...rawLabel] = rest.split(":");
+      const name = slugify(rawName);
       assertSegments([name]);
-      return { name, label: rawLabel.join(":").trim() || undefined };
+      return {
+        name,
+        label: rawLabel.join(":").trim() || labelFromRaw(rawName, name),
+        icon,
+      };
     });
 }
+
 function pageSource(label, component, createLink) {
   const lines = [];
   if (createLink) lines.push(`import { Link } from "react-router-dom";`, ``);
@@ -123,6 +212,24 @@ function pageSource(label, component, createLink) {
   );
   return lines.join("\n");
 }
+
+function navSource({ label, icon, group, order, defaultOpen, toggleOnly, flat, hidden }) {
+  const lines = [];
+  if (icon && ICON_STYLE === "component") {
+    lines.push(`import { ${icon} } from "lucide-react";`, ``);
+  }
+  lines.push(`export default {`, `  label: ${JSON.stringify(label)},`);
+  if (icon) lines.push(ICON_STYLE === "component" ? `  icon: ${icon},` : `  icon: ${JSON.stringify(icon)},`);
+  if (group !== undefined) lines.push(`  group: ${JSON.stringify(group)},`);
+  lines.push(`  order: ${order},`);
+  if (defaultOpen) lines.push(`  defaultOpen: true,`);
+  if (toggleOnly) lines.push(`  toggleOnly: true,`);
+  if (flat) lines.push(`  flat: true,`);
+  if (hidden) lines.push(`  hidden: true,`);
+  lines.push(`};`, ``);
+  return lines.join("\n");
+}
+
 function createPage(segments, opts = {}) {
   assertSegments(segments);
 
@@ -138,18 +245,23 @@ function createPage(segments, opts = {}) {
   writeSafe(path.join(dir, "index.jsx"), pageSource(label, component, opts.createLink));
 
   if (!noNav) {
-    const lines = [`export default {`, `  label: ${JSON.stringify(label)},`];
-    if (topLevel) lines.push(`  group: ${JSON.stringify(opts.group ?? "Menu")},`);
-    lines.push(`  order: ${opts.order ?? nextOrder(parentDir)},`);
-    if (opts.flat) lines.push(`  flat: true,`);
-    lines.push(`};`, ``);
-    writeSafe(path.join(dir, "nav.js"), lines.join("\n"));
+    writeSafe(
+      path.join(dir, "nav.js"),
+      navSource({
+        label,
+        icon: opts.icon,
+        group: topLevel ? (opts.group ?? "Menu") : undefined,
+        order: opts.order ?? nextOrder(parentDir),
+        defaultOpen: opts.defaultOpen,
+        toggleOnly: opts.toggleOnly,
+        flat: opts.flat,
+        hidden: opts.hidden,
+      })
+    );
   }
 
   console.log("Route: /" + segments.join("/") + "\n");
 }
-
-/* ------------------------------ service ------------------------------ */
 
 const API_SOURCE = [
   "import axios from 'axios';",
@@ -174,6 +286,7 @@ function pluralize(w) {
   if (/(s|x|z|ch|sh)$/.test(w)) return w + "es";
   return w + "s";
 }
+
 function serviceNames(segments) {
   const words = segments.flatMap((s) => s.split(/[-_]/).filter(Boolean)).map((w) => w.toLowerCase());
   const plural = [...words.slice(0, -1), pluralize(words[words.length - 1])];
@@ -221,6 +334,7 @@ function createService(segments, mode, endpointOverride) {
   );
   console.log(`Endpoint: /${endpoint}  |  Mode: ${mode === "resource" ? "resource (CRUD)" : "GET saja"}\n`);
 }
+
 const H1 = "text-lg font-semibold text-slate-900 dark:text-slate-100";
 const MUTED = "text-sm text-slate-500 dark:text-slate-400";
 const BACK = "text-sm text-slate-600 underline dark:text-slate-300";
@@ -296,6 +410,7 @@ function createFormPages(segments, label) {
   );
   console.log(`Route: ${backTo}/create dan ${backTo}/:id/edit\n`);
 }
+
 function run(config) {
   const { segments, children, service } = config;
   const withForm = config.form && service === "resource";
@@ -307,6 +422,10 @@ function run(config) {
     order: config.order,
     flat: config.flat,
     noNav: config.noNav,
+    hidden: config.hidden,
+    defaultOpen: config.defaultOpen,
+    toggleOnly: config.toggleOnly,
+    icon: config.icon,
     createLink:
       withForm && children.length === 0 && !isDynamic(segments)
         ? "/" + segments.join("/") + "/create"
@@ -317,6 +436,7 @@ function run(config) {
     const childSegments = [...segments, child.name];
     createPage(childSegments, {
       label: child.label,
+      icon: child.icon,
       createLink: withForm ? "/" + childSegments.join("/") + "/create" : undefined,
     });
   }
@@ -341,30 +461,43 @@ function run(config) {
 
   if (config.dropdown && children.length === 0) {
     console.log(
-      `Dropdown siap. Tambah anak dengan: npm run page -- ${segments.join("/")} --dropdown nama1,nama2`
+      `Dropdown siap. Tambah anak dengan: npm run page -- ${segments.join("/")} --dropdown "Nama 1@Ikon,Nama 2"`
     );
   }
 }
 
-function configFromFlags(target, flags) {
-  const segments = target
+function splitTarget(target) {
+  const raws = target
     .split("/")
-    .filter(Boolean)
-    .map((s) => s.toLowerCase());
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const segments = raws.map(slugify);
   assertSegments(segments);
+  return { raws, segments };
+}
+
+function configFromFlags(target, flags) {
+  const { raws, segments } = splitTarget(target);
 
   if (flags.form === true && flags.resource !== true) {
     console.warn("Peringatan: --form hanya berlaku bersama --resource, jadi diabaikan.\n");
   }
 
+  const last = segments.length - 1;
+
   return {
     segments,
-    label: typeof flags.label === "string" ? flags.label : undefined,
+    label:
+      typeof flags.label === "string" ? flags.label : labelFromRaw(raws[last], segments[last]),
     group: typeof flags.group === "string" ? flags.group : undefined,
+    icon: typeof flags.icon === "string" ? resolveIcon(flags.icon) : undefined,
     order:
       flags.order !== undefined && Number.isFinite(Number(flags.order)) ? Number(flags.order) : undefined,
     flat: flags.flat === true,
     noNav: flags["no-nav"] === true,
+    hidden: flags.hidden === true,
+    defaultOpen: flags["default-open"] === true,
+    toggleOnly: flags["toggle-only"] === true,
     dropdown: flags.dropdown !== undefined,
     children: typeof flags.dropdown === "string" ? parseChildren(flags.dropdown) : [],
     service: flags.resource === true ? "resource" : flags.service === true ? "get" : "none",
@@ -393,27 +526,40 @@ async function askInteractive() {
     console.log("\nBuat halaman baru (tekan Enter untuk memakai nilai di dalam [ ])\n");
 
     let segments;
+    let raws;
     while (true) {
-      const raw = (await ask("Nama folder (contoh: surat atau surat/masuk)")).toLowerCase();
-      segments = raw.split("/").filter(Boolean);
+      const raw = await ask("Nama folder (bebas huruf besar/spasi, contoh: Surat Masuk atau surat/masuk)");
       try {
-        assertSegments(segments);
+        ({ raws, segments } = splitTarget(raw));
+        console.log(`  -> folder: ${segments.join("/")}`);
         break;
       } catch (err) {
         console.log(err.message);
       }
     }
 
-    const last = segments[segments.length - 1];
-    const label = await ask("Label menu", toWords(last).join(" "));
+    const last = segments.length - 1;
+    const label = await ask("Label menu", labelFromRaw(raws[last], segments[last]));
     const group = segments.length === 1 ? await ask("Grup sidebar", "Menu") : undefined;
+
+    let icon;
+    while (true) {
+      const rawIcon = await ask("Ikon lucide-react (contoh: Mail, mail-open; kosongkan = tanpa ikon)");
+      if (!rawIcon) break;
+      icon = resolveIcon(rawIcon);
+      if (icon) break;
+    }
 
     const menuType = await choose("Tipe menu", ["Single (satu menu)", "Dropdown (induk + submenu)"]);
 
     let children = [];
+    let defaultOpen = false;
+    let toggleOnly = false;
     if (menuType === 2) {
       while (true) {
-        const raw = await ask("Nama submenu, pisahkan koma (contoh: masuk:Surat Masuk,keluar)");
+        const raw = await ask(
+          "Submenu, pisahkan koma. Format Nama[:Label][@Ikon] (contoh: Surat Masuk@Mail, Surat Keluar@Send)"
+        );
         try {
           children = raw ? parseChildren(raw) : [];
           break;
@@ -421,6 +567,10 @@ async function askInteractive() {
           console.log(err.message);
         }
       }
+      toggleOnly =
+        (await choose("Klik menu induk", ["Buka halaman induk", "Hanya buka/tutup submenu"])) === 2;
+      defaultOpen =
+        (await choose("Submenu saat pertama dimuat", ["Tertutup", "Terbuka"])) === 2;
     }
 
     const serviceChoice = await choose(
@@ -429,7 +579,6 @@ async function askInteractive() {
     );
     const service = ["none", "get", "resource"][serviceChoice - 1];
 
-    // Pertanyaan ini hanya muncul kalau memilih nomor 3 (resource)
     let form = false;
     if (service === "resource" && !isDynamic(segments)) {
       const formChoice = await choose(
@@ -452,9 +601,13 @@ async function askInteractive() {
       segments,
       label,
       group,
+      icon,
       order: undefined,
       flat: false,
       noNav: false,
+      hidden: false,
+      defaultOpen,
+      toggleOnly,
       dropdown: menuType === 2,
       children,
       service,
@@ -468,7 +621,7 @@ async function askInteractive() {
 
 async function main() {
   const { flags, positional } = parseArgs(process.argv.slice(2));
-  const target = positional[0];
+  const target = positional.join(" ").trim();
 
   if (!target && !process.stdin.isTTY) {
     console.error(USAGE);

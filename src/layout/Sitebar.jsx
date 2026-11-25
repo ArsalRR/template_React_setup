@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { ChevronRight, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/lib/nav";
+import { SIDEBAR_THEME } from "@/lib/sidebar-theme";
 
 const APP_LOGO = "/logo.png";
 const APP_NAME = "Nama Aplikasi";
@@ -10,11 +11,10 @@ const APP_TAGLINE = "Testing";
 
 const ROW =
   "flex w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm transition-colors duration-150";
-const FOCUS =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50";
+const FOCUS = cn("focus-visible:outline-none focus-visible:ring-2", SIDEBAR_THEME.ring);
 const IDLE =
   "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100";
-const ACTIVE = "bg-rose-700 font-medium text-white";
+const ACTIVE = SIDEBAR_THEME.active;
 const ACTIVE_SOFT =
   "bg-slate-100 font-medium text-slate-900 dark:bg-slate-800 dark:text-slate-100";
 
@@ -33,6 +33,16 @@ function Chevron({ open }) {
   );
 }
 
+function ItemLabel({ item }) {
+  const Icon = item.icon;
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      {Icon && <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />}
+      <span className="truncate">{item.label}</span>
+    </span>
+  );
+}
+
 function NavItem({ item, depth = 0, closeMobile }) {
   const { pathname } = useLocation();
   const hasChildren = item.children.length > 0;
@@ -45,7 +55,6 @@ function NavItem({ item, depth = 0, closeMobile }) {
     if (inside) setOpen(true);
   }, [inside]);
 
-  // 1) Menu biasa tanpa anak
   if (!hasChildren) {
     return (
       <NavLink
@@ -53,12 +62,11 @@ function NavItem({ item, depth = 0, closeMobile }) {
         onClick={closeMobile}
         className={({ isActive }) => cn(ROW, FOCUS, pad, isActive ? ACTIVE : IDLE)}
       >
-        <span className="truncate">{item.label}</span>
+        <ItemLabel item={item} />
       </NavLink>
     );
   }
 
-  // 2) Induk dengan submenu: seluruh baris bisa diklik
   const rowState = item.toggleOnly
     ? inside
       ? ACTIVE_SOFT
@@ -71,7 +79,7 @@ function NavItem({ item, depth = 0, closeMobile }) {
 
   const content = (
     <>
-      <span className="truncate">{item.label}</span>
+      <ItemLabel item={item} />
       <Chevron open={open} />
     </>
   );
@@ -168,7 +176,6 @@ export function Sidebar() {
           "md:static md:z-auto md:translate-x-0"
         )}
       >
-        {/* Brand */}
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-700">
           <div className="flex min-w-0 items-center gap-3">
             <img
@@ -198,7 +205,6 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Menu */}
         <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-4">
           {NAV_GROUPS.map((group) => (
             <div key={group.label}>
